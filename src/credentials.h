@@ -1,3 +1,3 @@
 // Change to your WiFi credentials
-const char *ssid = "your ssid";
-const char *password = "your password";
+const char *ssid = "YourFutureEngineer";
+const char *password = "26111997";
