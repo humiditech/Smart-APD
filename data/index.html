@@ -27,17 +27,24 @@ copies or substantial portions of the Software. -->
 </head>
 
 <body>
-    <h2>ESP Weather Station</h2>
+    <h2>Smart APD</h2>
     <div id="chart-temperature" class="container"></div>
     <div id="chart-humidity" class="container"></div>
 </body>
 <script>
-    var chartT = new Highcharts.Chart({
+    const timezone = new Date().getTimezoneOffset()
+    let dataInterval = 3000; // in ms
+    // Highcharts.setOptions({
+    //     global: {
+    //         getTimezoneOffset: timezone
+    //     }
+    // })
+    let chartT = new Highcharts.Chart({
         chart: {
             renderTo: 'chart-temperature'
         },
         title: {
-            text: 'DHT 11 Temperature'
+            text: 'Temperature Data'
         },
         series: [{
             showInLegend: false,
@@ -74,7 +81,7 @@ copies or substantial portions of the Software. -->
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState == 4 && this.status == 200) {
-                var x = (new Date()).getTime(),
+                var x = new Date(),
                     y = parseFloat(this.responseText);
                 //console.log(this.responseText);
                 if (chartT.series[0].data.length > 40) {
@@ -86,14 +93,14 @@ copies or substantial portions of the Software. -->
         };
         xhttp.open("GET", "/temperature", true);
         xhttp.send();
-    }, 30000);
+    }, dataInterval);
 
-    var chartH = new Highcharts.Chart({
+    let chartH = new Highcharts.Chart({
         chart: {
             renderTo: 'chart-humidity'
         },
         title: {
-            text: 'DHT11 Humidity'
+            text: 'Humidity Data'
         },
         series: [{
             showInLegend: false,
@@ -126,7 +133,7 @@ copies or substantial portions of the Software. -->
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState == 4 && this.status == 200) {
-                var x = (new Date()).getTime(),
+                var x = new Date(),
                     y = parseFloat(this.responseText);
                 //console.log(this.responseText);
                 if (chartH.series[0].data.length > 40) {
@@ -138,7 +145,7 @@ copies or substantial portions of the Software. -->
         };
         xhttp.open("GET", "/humidity", true);
         xhttp.send();
-    }, 30000);
+    }, dataInterval);
 </script>
 
 </html>

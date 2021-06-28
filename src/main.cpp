@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <ESP32WebServer.h>
+#include <ESPAsyncWebServer.h>
 #include <DHT.h>
 #include "FS.h"
 #include "SPIFFS.h"
@@ -11,7 +11,7 @@
 String version = "v1.0";
 String site_width = "1023";
 WiFiClient client;
-ESP32WebServer server(80);
+AsyncWebServer server(80);
 
 int log_time_unit = 15;
 int time_reference = 60;
@@ -43,7 +43,7 @@ DHT dht(DHT_PIN, DHT_TYPE);
 unsigned long current_time = 0;
 const int interval = 1000;
 
-// Functions
+// Functions declaration
 void StartSPIFFS();
 int StartWiFi(const char *ssid, const char *password);
 void StartTime();
@@ -51,20 +51,8 @@ void UpdateLocalTime();
 String GetTime();
 String calcDateTime(int epoch);
 void reset_array();
-
-void systemSetup();
-void append_page_header();
-void append_page_footer();
-void update_log_time();
-void logtime_up();
-void logtime_down();
-void auto_update();
-void auto_scale();
-void LOG_stats();
-void LOG_erase();
-void LOG_view();
-void display_temp_and_humidity();
-void prefill_array();
+String readDHTTemp();
+String readDHTHumidity();
 
 void setup()
 {
@@ -74,85 +62,75 @@ void setup()
   StartWiFi(ssid, password);
   StartTime();
   Serial.println(F("WiFi Connected ...."));
-  server.begin();
   Serial.println(F("Webserver started ..."));
   Serial.println("Connect to this url : http://" + WiFi.localIP().toString() + "/");
-  // Routes
-  server.on("/", display_temp_and_humidity);
-  server.on("/TH", display_temp_and_humidity);
-  server.on("/AS", auto_scale);
-  server.on("/AU", auto_update);
-  server.on("/Setup", systemSetup);
-  server.on("/LgTU", logtime_up);
-  server.on("/LgTD", logtime_down);
-  server.on("/LogV", LOG_view);
-  server.on("/LogE", LOG_erase);
-  server.on("/LogS", LOG_stats);
-  server.begin();
-  Serial.println(F("Webserver started ..."));
 
-  index_ptr = 0; // Array pointer
-  log_count = 0; // Data logger counter
-  AScale = false;
-  max_temp = 40;  // Maximum displayed temperature
-  min_temp = -10; // Minimum displayed temperature
-  auto_smooth = false;
-  AUpdate = true;
-  lastcall = "temp_humi";
-  log_interval = log_time_unit * 10;
-  timer_cnt = log_interval + 1;
-  update_log_time();
-  log_delete_approved = false;
-  reset_array();
-  prefill_array();
+  server.begin();
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(SPIFFS, "/index.html"); });
+
+  server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send_P(200, "text/plain", readDHTTemp().c_str()); });
+
+  server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send_P(200, "text/plain", readDHTHumidity().c_str()); });
+
+  // index_ptr = 0;  // Array pointer
+  // log_count = 0;  // Data logger counter
+  // max_temp = 40;  // Maximum displayed temperature
+  // min_temp = -10; // Minimum displayed temperature
+  // lastcall = "temp_humi";
+  // log_interval = log_time_unit * 10;
+  // timer_cnt = log_interval + 1;
+  // log_delete_approved = false;
+  // reset_array();
 }
 
 void loop()
 {
-  server.handleClient();
-  humi = dht.readHumidity();
-  temp = dht.readTemperature();
+  // humi = dht.readHumidity();
+  // temp = dht.readTemperature();
 
-  time_t now = time(nullptr);
-  time_now = String(ctime(&now)).substring(0, 24);
+  // time_t now = time(nullptr);
+  // time_now = String(ctime(&now)).substring(0, 24);
 
-  if (time_now != "Thu Jan 01 00:00:00 1970" and timer_cnt >= log_interval)
-  {
-    timer_cnt = 0;
-    log_count += 1;
-    sensor_data[index_ptr].lcnt = log_count;
-    sensor_data[index_ptr].temp = temp;
-    sensor_data[index_ptr].humi = humi;
-    sensor_data[index_ptr].ltime = calcDateTime(time(&now)); // Timestamp
+  // if (time_now != "Thu Jan 01 00:00:00 1970" && timer_cnt >= log_interval)
+  // {
+  //   timer_cnt = 0;
+  //   log_count += 1;
+  //   sensor_data[index_ptr].lcnt = log_count;
+  //   sensor_data[index_ptr].temp = temp;
+  //   sensor_data[index_ptr].humi = humi;
+  //   sensor_data[index_ptr].ltime = calcDateTime(time(&now)); // Timestamp
 
-    File datafile = SPIFFS.open("/" + DataFile, FILE_APPEND);
-    time_t now = time(nullptr);
-    if (datafile == true)
-    {                                                                                                                                                                                   // if the file is available, write to it
-      datafile.println(((log_count < 10) ? "0" : "") + String(log_count) + char(9) + String(temp / 10, 2) + char(9) + String(humi / 10, 2) + char(9) + calcDateTime(time(&now)) + "."); // TAB delimited
-      Serial.println(((log_count < 10) ? "0" : "") + String(log_count) + " New Record Added");
-    }
-    datafile.close();
-    index_ptr += 1;
-    if (index_ptr > table_size)
-    {
-      index_ptr = table_size;
-      for (int i = 0; i < table_size; i++) // If data table full, scroll to the left and add new reading to the end
-      {
-        sensor_data[i].lcnt = sensor_data[i + 1].lcnt;
-        sensor_data[i].temp = sensor_data[i + 1].temp;
-        sensor_data[i].humi = sensor_data[i + 1].humi;
-        sensor_data[i].ltime = calcDateTime(time(&now));
-      }
-    }
-    timer_cnt += 1;
-  }
+  //   File datafile = SPIFFS.open("/" + DataFile, FILE_APPEND);
+  //   time_t now = time(nullptr);
+  //   if (datafile == true)
+  //   {                                                                                                                                                                                   // if the file is available, write to it
+  //     datafile.println(((log_count < 10) ? "0" : "") + String(log_count) + char(9) + String(temp / 10, 2) + char(9) + String(humi / 10, 2) + char(9) + calcDateTime(time(&now)) + "."); // TAB delimited
+  //     Serial.println(((log_count < 10) ? "0" : "") + String(log_count) + " New Record Added");
+  //   }
+  //   datafile.close();
+  //   index_ptr += 1;
+  //   if (index_ptr > table_size)
+  //   {
+  //     index_ptr = table_size;
+  //     for (int i = 0; i < table_size; i++) // If data table full, scroll to the left and add new reading to the end
+  //     {
+  //       sensor_data[i].lcnt = sensor_data[i + 1].lcnt;
+  //       sensor_data[i].temp = sensor_data[i + 1].temp;
+  //       sensor_data[i].humi = sensor_data[i + 1].humi;
+  //       sensor_data[i].ltime = calcDateTime(time(&now));
+  //     }
+  //   }
+  //   timer_cnt += 1;
+  // }
   // Serial.print(F("Humidity: "));
   // Serial.print(humi);
   // Serial.print(F(" %   Temperature : "));
   // Serial.print(temp);
   // Serial.println(F(" C"));
-  delay(500);
+  // delay(500);
 }
 
 void StartSPIFFS()
@@ -282,60 +260,6 @@ String calcDateTime(int epoch)
   return date_time;
 }
 
-void prefill_array()
-{
-  File datafile = SPIFFS.open("/" + DataFile, FILE_READ);
-  while (datafile.available())
-  {                                       // if the file is available, read from it
-    int read_ahead = datafile.parseInt(); // Sometimes at the end of file, NULL data is returned, this tests for that
-    if (read_ahead != 0)
-    { // Probably wasn't null data to use it, but first data element could have been zero and there is never a record 0!
-      sensor_data[index_ptr].lcnt = read_ahead;
-      sensor_data[index_ptr].temp = datafile.parseFloat() * 10;
-      sensor_data[index_ptr].humi = datafile.parseFloat() * 10;
-      sensor_data[index_ptr].ltime = datafile.readStringUntil('.');
-      sensor_data[index_ptr].ltime.trim();
-      index_ptr += 1;
-      log_count += 1;
-    }
-    if (index_ptr > table_size)
-    {
-      for (int i = 0; i < table_size; i++)
-      {
-        sensor_data[i].lcnt = sensor_data[i + 1].lcnt;
-        sensor_data[i].temp = sensor_data[i + 1].temp;
-        sensor_data[i].humi = sensor_data[i + 1].humi;
-        sensor_data[i].ltime = sensor_data[i + 1].ltime;
-        sensor_data[i].ltime.trim();
-      }
-      index_ptr = table_size;
-    }
-  }
-  datafile.close();
-  // Diagnostic print to check if data is being recovered from SPIFFS correctly
-  for (int i = 0; i <= index_ptr; i++)
-  {
-    Serial.println(((i < 10) ? "0" : "") + String(sensor_data[i].lcnt) + " " + String(sensor_data[i].temp) + " " + String(sensor_data[i].humi) + " " + String(sensor_data[i].ltime));
-  }
-  datafile.close();
-  if (auto_smooth)
-  { // During restarts there can be a discontinuity in readings, giving a spike in the graph, this smooths that out, off by default though
-    // At this point the array holds data from the FS, but sometimes during outage and resume, reading discontinuity occurs, so try to correct those.
-    float last_temp, last_humi;
-    for (int i = 1; i < table_size; i++)
-    {
-      last_temp = sensor_data[i].temp;
-      last_humi = sensor_data[i].humi;
-      // Correct next reading if it is more than 10% different from last values
-      if ((sensor_data[i + 1].temp > (last_temp * 1.1)) || (sensor_data[i + 1].temp < (last_temp / 1.1)))
-        sensor_data[i + 1].temp = (sensor_data[i + 1].temp + last_temp) / 2; // +/-1% different then use last value
-      if ((sensor_data[i + 1].humi > (last_humi * 1.1)) || (sensor_data[i + 1].humi < (last_humi / 1.1)))
-        sensor_data[i + 1].humi = (sensor_data[i + 1].humi + last_humi) / 2;
-    }
-  }
-  Serial.println("Restored data from SPIFFS");
-}
-
 void reset_array()
 {
   for (int i = 0; i <= table_size; i++)
@@ -347,281 +271,32 @@ void reset_array()
   }
 }
 
-void LOG_view()
+String readDHTTemp()
 {
-  File datafile = SPIFFS.open("/" + DataFile, FILE_READ); // Now read data from FS
-  if (datafile)
+  float temp = dht.readTemperature();
+  if (isnan(temp))
   {
-    if (datafile.available())
-    { // If data is available and present
-      String dataType = "application/octet-stream";
-      if (server.streamFile(datafile, dataType) != datafile.size())
-      {
-        Serial.print(F("Sent less data than expected!"));
-      }
-    }
-  }
-  datafile.close(); // close the file:
-  webpage = "";
-}
-
-void LOG_erase()
-{               // Erase the datalog file
-  webpage = ""; // don't delete this command, it ensures the server works reliably!
-  append_page_header();
-  if (AUpdate)
-    webpage += "<meta http-equiv='refresh' content='30'>"; // 30-sec refresh time and test is needed to stop auto updates repeating some commands
-  if (log_delete_approved)
-  {
-    if (SPIFFS.exists("/" + DataFile))
-    {
-      SPIFFS.remove("/" + DataFile);
-      Serial.println(F("File deleted successfully"));
-    }
-    webpage += "<h3 style=\"color:orange;font-size:24px\">Log file '" + DataFile + "' has been erased</h3>";
-    log_count = 0;
-    index_ptr = 0;
-    timer_cnt = 2000;            // To trigger first table update, essential
-    log_delete_approved = false; // Re-enable FS deletion
+    Serial.println("Failed to read temperature");
+    return "";
   }
   else
   {
-    log_delete_approved = true;
-    webpage += "<h3 style=\"color:orange;font-size:24px\">Log file erasing is now enabled, repeat this option to erase the log. Graph or Dial Views disable erasing again</h3>";
+    Serial.println(temp);
+    return String(temp);
   }
-  append_page_footer();
-  server.send(200, "text/html", webpage);
-  webpage = "";
 }
 
-void LOG_stats()
-{               // Display file size of the datalog file
-  webpage = ""; // don't delete this command, it ensures the server works reliably!
-  append_page_header();
-  File datafile = SPIFFS.open("/" + DataFile, FILE_READ); // Now read data from FS
-  webpage += "<h3 style=\"color:orange;font-size:24px\">Data Log file size = " + String(datafile.size()) + "-Bytes</h3>";
-  webpage += "<h3 style=\"color:orange;font-size:24px\">Number of readings = " + String(log_count) + "</h3>";
-  datafile.close();
-  append_page_footer();
-  server.send(200, "text/html", webpage);
-  webpage = "";
-}
-
-void auto_scale()
-{ // Google Charts can auto-scale graph axis, this turns it on/off
-  if (AScale)
-    AScale = false;
-  else
-    AScale = true;
-  if (lastcall == "temp_humi")
-    display_temp_and_humidity();
-}
-
-void auto_update()
-{ // Google Charts can auto-scale graph axis, this turns it on/off
-  if (AUpdate)
-    AUpdate = false;
-  else
-    AUpdate = true;
-  if (lastcall == "temp_humi")
-    display_temp_and_humidity();
-}
-
-void logtime_down()
-{ // Timer_cnt delay values 1=15secs 4=1min 20=5mins 40=10mins 240=1hr, increase the values with this function
-  log_interval -= log_time_unit;
-  if (log_interval < log_time_unit)
-    log_interval = log_time_unit;
-  update_log_time();
-  if (lastcall == "temp_humi")
-    display_temp_and_humidity();
-}
-
-void logtime_up()
-{ // Timer_cnt delay values 1=15secs 4=1min 20=5mins 40=10mins 240=1hr, increase the values with this function
-  log_interval += log_time_unit;
-  update_log_time();
-  if (lastcall == "temp_humi")
-    display_temp_and_humidity();
-}
-
-void update_log_time()
+String readDHTHumidity()
 {
-  float log_hrs;
-  log_hrs = table_size * log_interval / time_reference;
-  log_hrs = log_hrs / 60.0; // Should not be needed, but compiler can't calculate the result in-line!
-  float log_mins = (log_hrs - int(log_hrs)) * 60;
-  log_time = String(int(log_hrs)) + ":" + ((log_mins < 10) ? "0" + String(int(log_mins)) : String(int(log_mins))) + " Hrs  of readings, (" + String(log_interval) + ")secs per reading";
-  //log_time += ", Free-mem:("+String(system_get_free_heap_size())+")";
-}
-
-void systemSetup()
-{
-  webpage = ""; // don't delete this command, it ensures the server works reliably!
-  append_page_header();
-  String IPaddress = WiFi.localIP().toString();
-  webpage += F("<h3 style=\"color:orange;font-size:24px\">System Setup, Enter Values Required</h3>");
-  webpage += F("<meta http-equiv='refresh' content='200'/ URL=http://");
-  webpage += IPaddress + "/Setup>";
-  webpage += "<form action='http://" + IPaddress + "/Setup' method='POST'>";
-  webpage += "Maximum Temperature on Graph axis (currently = " + String(max_temp) + "&deg;C<br>";
-  webpage += F("<input type='text' name='max_temp_in' value='30'><br>");
-  webpage += "Minimum Temperature on Graph axis (currently = " + String(min_temp) + "&deg;C<br>";
-  webpage += F("<input type='text' name='min_temp_in' value='-10'><br>");
-  webpage += "Logging Interval (currently = " + String(log_interval) + "-Secs) (1=15secs)<br>";
-  webpage += F("<input type='text' name='log_interval_in' value=''><br>");
-  webpage += "Auto-scale Graph (currently = " + String(AScale ? "ON" : "OFF") + "<br>";
-  webpage += F("<input type='text' name='auto_scale' value=''><br>");
-  webpage += "Auto-update Graph (currently = " + String(AUpdate ? "ON" : "OFF") + "<br>";
-  webpage += F("<input type='text' name='auto_update' value=''><br>");
-  webpage += F("<input type='submit' value='Enter'><br><br>");
-  webpage += F("</form>");
-  append_page_footer();
-  server.send(200, "text/html", webpage); // Send a response to the client asking for input
-  if (server.args() > 0)
-  { // Arguments were received
-    for (uint8_t i = 0; i < server.args(); i++)
-    {
-      String Argument_Name = server.argName(i);
-      String client_response = server.arg(i);
-      if (Argument_Name == "max_temp_in")
-      {
-        if (client_response.toInt())
-          max_temp = client_response.toInt();
-        else
-          max_temp = 30;
-      }
-      if (Argument_Name == "min_temp_in")
-      {
-        if (client_response.toInt() == 0)
-          min_temp = 0;
-        else
-          min_temp = client_response.toInt();
-      }
-      if (Argument_Name == "log_interval_in")
-      {
-        if (client_response.toInt())
-          log_interval = client_response.toInt();
-        else
-          log_interval = 300;
-        log_interval = client_response.toInt() * log_time_unit;
-      }
-      if (Argument_Name == "auto_scale")
-      {
-        if (client_response == "ON" || client_response == "on")
-          AScale = !AScale;
-      }
-      if (Argument_Name == "auto_update")
-      {
-        if (client_response == "ON" || client_response == "on")
-          AUpdate = !AUpdate;
-      }
-    }
-  }
-  webpage = "";
-  update_log_time();
-}
-
-void append_page_header()
-{
-  webpage = "<!DOCTYPE html><head>";
-  if (AUpdate)
-    webpage += F("<meta http-equiv='refresh' content='30'>"); // 30-sec refresh time, test needed to prevent auto updates repeating some commands
-  webpage += F("<title>Smart APD Data Logger</title>");
-  webpage += F("<style>ul{list-style-type:none;margin:0;padding:0;overflow:hidden;background-color:#31c1f9;font-size:14px;}");
-  webpage += F("li{float:left;}");
-  webpage += F("li a{display:block;text-align:center;padding:5px 25px;text-decoration:none;}");
-  webpage += F("li a:hover{background-color:#FFFFFF;}");
-  webpage += F("h1{background-color:#31c1f9;}");
-  webpage += F("body{width:");
-  webpage += site_width;
-  webpage += F("px;margin:0 auto;font-family:arial;font-size:14px;text-align:center;color:#ed6495;background-color:#F7F2Fd;}");
-  webpage += F("</style></head><body><h1>Data Logger ");
-  webpage += version + "</h1>";
-}
-
-void append_page_footer()
-{ // Saves repeating many lines of code for HTML page footers
-  webpage += F("<ul>");
-  webpage += F("<li><a href='/TH'>Temp&deg;/Humi</a></li>");
-  // webpage += F("<li><a href='/TD'>Temp&deg;/DewP</a></li>");
-  // webpage += F("<li><a href='/DV'>Dial</a></li>");
-  webpage += F("<li><a href='/LgTU'>Records&dArr;</a></li>");
-  webpage += F("<li><a href='/LgTD'>Records&uArr;</a></li>");
-  webpage += F("<li><a href='/AS'>AutoScale(");
-  webpage += String((AScale ? "ON" : "OFF")) + ")</a></li>";
-  webpage += F("<li><a href='/AU'>Refresh(");
-  webpage += String((AUpdate ? "ON" : "OFF")) + ")</a></li>";
-  webpage += F("<li><a href='/Setup'>Setup</a></li>");
-  // webpage += F("<li><a href='/Help'>Help</a></li>");
-  webpage += F("<li><a href='/LogS'>Log Size</a></li>");
-  webpage += F("<li><a href='/LogV'>Log View</a></li>");
-  webpage += F("<li><a href='/LogE'>Log Erase</a></li>");
-  webpage += F("</ul><footer><p ");
-  webpage += F("style='background-color:#a3b2f7'>&copy;");
-  char HTML[15] = {0x40, 0x88, 0x5c, 0x98, 0x5C, 0x84, 0xD2, 0xe4, 0xC8, 0x40, 0x64, 0x60, 0x62, 0x70, 0x00};
-  for (byte c = 0; c < 15; c++)
+  float humid = dht.readHumidity();
+  if (isnan(humid))
   {
-    HTML[c] >>= 1;
-  }
-  webpage += String(HTML) + F("</p>\n");
-  webpage += F("</footer></body></html>");
-}
-
-void display_temp_and_humidity()
-{ // Processes a clients request for a graph of the data
-  // See google charts api for more details. To load the APIs, include the following script in the header of your web page.
-  // <script type="text/javascript" src="https://www.google.com/jsapi"></script>
-  // To autoload APIs manually, you need to specify the list of APIs to load in the initial <script> tag, rather than in a separate google.load call for each API. For instance, the object declaration to auto-load version 1.0 of the Search API (English language) and the local search element, would look like: {
-  // This would be compressed to: {"modules":[{"name":"search","version":"1.0","language":"en"},{"name":"elements","version":"1.0","packages":["
-  // See https://developers.google.com/chart/interactive/docs/basic_load_libs
-  log_delete_approved = false; // Prevent accidental SD-Card deletion
-  webpage = "";                // don't delete this command, it ensures the server works reliably!
-  append_page_header();
-  // https://developers.google.com/loader/ // https://developers.google.com/chart/interactive/docs/basic_load_libs
-  // https://developers.google.com/chart/interactive/docs/basic_preparing_data
-  // https://developers.google.com/chart/interactive/docs/reference#google.visualization.arraytodatatable and See appendix-A
-  // data format is: [field-name,field-name,field-name] then [data,data,data], e.g. [12, 20.5, 70.3]
-  webpage += F("<script type='text/javascript' src='https://www.gstatic.com/charts/loader.js'></script>");
-  webpage += F("<script type=\"text/javascript\">");
-  webpage += F("google.charts.load('current', {packages: ['corechart', 'line']});");
-  webpage += F("google.setOnLoadCallback(drawChart);");
-  webpage += F("function drawChart() {");
-  webpage += F("var data = google.visualization.arrayToDataTable([");
-  webpage += F("['Reading','Temperature','Humidity'],\n");
-  for (int i = 0; i < index_ptr; i = i + 2)
-  { // Can't display all data points!!!
-    webpage += "['" + String(i) + "'," + String(sensor_data[i].temp / 10.00F, 1) + "," + String(sensor_data[i].humi / 1000.00F, 2) + "],";
-  }
-  webpage += "]);\n";
-  //-----------------------------------
-  webpage += F("var options = {");
-  webpage += F("title:'Temperature & Humidity',titleTextStyle:{fontName:'Arial', fontSize:20, color: 'Maroon'},");
-  webpage += F("legend:{position:'bottom'},colors:['red','blue'],backgroundColor:'#F3F3F3',chartArea:{width:'85%',height:'55%'},");
-  webpage += F("hAxis:{titleTextStyle:{color:'Purple',bold:true,fontSize:16},gridlines:{color:'#333'},showTextEvery:5,title:'");
-  webpage += log_time + "'},";
-  // Uncomment next line to display x-axis in time units, but Google Charts can't cope with much data, may be just a few readings!
-  //webpage += "minorGridlines:{fontSize:8,format:'d/M/YY',units:{hours:{format:['hh:mm a','ha']},minutes:{format:['HH:mm a Z', ':mm']}}},";
-  //minorGridlines:{units:{hours:{format:['hh:mm a','ha']},minutes:{format:['HH:mm a Z', ':mm']}}  to display  x-axis in count units
-  webpage += F("vAxes:");
-  if (AScale)
-  {
-    webpage += F("{0:{viewWindowMode:'explicit',gridlines:{color:'black'}, title:'Temp Deg-C',format:'##.##'},");
-    webpage += F(" 1:{gridlines:{color:'transparent'},viewWindow:{min:0,max:1},title:'Humidity %',format:'##%'},},");
+    Serial.println("Failed to read humidity");
+    return "";
   }
   else
   {
-    webpage += F("{0:{viewWindowMode:'explicit',gridlines:{color:'black'},title:'Temp Deg-C',format:'##.##',viewWindow:{min:");
-    webpage += String(min_temp) + ",max:" + String(max_temp) + "},},";
-    webpage += F(" 1:{gridlines:{color:'transparent'},viewWindow:{min:0,max:1},title:'Humidity %',format:'##%'},},");
+    Serial.println(humid);
+    return String(humid);
   }
-  webpage += F("series:{0:{targetAxisIndex:0},1:{targetAxisIndex:1},curveType:'none'},};");
-  webpage += F("var chart = new google.visualization.LineChart(document.getElementById('line_chart'));chart.draw(data, options);");
-  webpage += F("}");
-  webpage += F("</script>");
-  webpage += F("<div id='line_chart' style='width:1020px; height:500px'></div>");
-  append_page_footer();
-  server.send(200, "text/html", webpage);
-  webpage = "";
-  lastcall = "temp_humi";
 }
