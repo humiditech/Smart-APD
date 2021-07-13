@@ -36,12 +36,17 @@ typedef struct
 
 record_type sensor_data[table_size + 1];
 
-#define DHT_PIN 18
+#define DHT_PIN 34
 #define DHT_TYPE DHT11
 
 DHT dht(DHT_PIN, DHT_TYPE);
 unsigned long current_time = 0;
 const int interval = 1000;
+
+// Relay
+#define KIPAS 25
+#define UV 26
+#define PELTIER 27
 
 // Functions declaration
 void StartSPIFFS();
@@ -57,23 +62,31 @@ String readDHTHumidity();
 void setup()
 {
   Serial.begin(115200);
+  pinMode(KIPAS, OUTPUT);
+  pinMode(UV, OUTPUT);
+  pinMode(PELTIER, OUTPUT);
+  pinMode(DHT_PIN, INPUT);
+  digitalWrite(KIPAS, HIGH);
+  digitalWrite(UV, HIGH);
+  digitalWrite(PELTIER, HIGH);
+
   dht.begin();
-  StartSPIFFS();
+  // StartSPIFFS();
   StartWiFi(ssid, password);
-  StartTime();
-  Serial.println(F("WiFi Connected ...."));
-  Serial.println(F("Webserver started ..."));
-  Serial.println("Connect to this url : http://" + WiFi.localIP().toString() + "/");
+  // StartTime();
+  // Serial.println(F("WiFi Connected ...."));
+  // Serial.println(F("Webserver started ..."));
+  // Serial.println("Connect to this url : http://" + WiFi.localIP().toString() + "/");
 
-  server.begin();
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send(SPIFFS, "/index.html"); });
+  // server.begin();
+  // server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+  //           { request->send(SPIFFS, "/index.html"); });
 
-  server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send_P(200, "text/plain", readDHTTemp().c_str()); });
+  // server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request)
+  //           { request->send_P(200, "text/plain", readDHTTemp().c_str()); });
 
-  server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send_P(200, "text/plain", readDHTHumidity().c_str()); });
+  // server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request)
+  //           { request->send_P(200, "text/plain", readDHTHumidity().c_str()); });
 
   // index_ptr = 0;  // Array pointer
   // log_count = 0;  // Data logger counter
@@ -88,8 +101,14 @@ void setup()
 
 void loop()
 {
-  // humi = dht.readHumidity();
-  // temp = dht.readTemperature();
+  humi = dht.readHumidity();
+  temp = dht.readTemperature();
+
+  if (isnan(humi) || isnan(temp))
+  {
+    Serial.println(F("Failed to read from DHT sensor!"));
+    return;
+  }
 
   // time_t now = time(nullptr);
   // time_now = String(ctime(&now)).substring(0, 24);
@@ -125,12 +144,12 @@ void loop()
   //   }
   //   timer_cnt += 1;
   // }
-  // Serial.print(F("Humidity: "));
-  // Serial.print(humi);
-  // Serial.print(F(" %   Temperature : "));
-  // Serial.print(temp);
-  // Serial.println(F(" C"));
-  // delay(500);
+  Serial.print(F("Humidity: "));
+  Serial.print(humi);
+  Serial.print(F(" %   Temperature : "));
+  Serial.print(temp);
+  Serial.println(F(" °C"));
+  delay(2000);
 }
 
 void StartSPIFFS()
