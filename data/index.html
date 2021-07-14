@@ -1,16 +1,24 @@
 <!DOCTYPE HTML>
 <html>
-<!-- Rui Santos - Complete project details at https://RandomNerdTutorials.com
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files.
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software. -->
 
 <head>
+    <title>Smart APD </title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css"
+        integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+    <link rel="icon" href="data:,">
     <script src="https://code.highcharts.com/highcharts.js"></script>
     <style>
+        html {
+            font-family: Arial, sans-serif;
+            display: inline-block;
+            text-align: center;
+        }
+
+        p {
+            font-size: 1.2rem;
+        }
+
         body {
             min-width: 310px;
             max-width: 800px;
@@ -18,134 +26,91 @@ copies or substantial portions of the Software. -->
             margin: 0 auto;
         }
 
-        h2 {
-            font-family: Arial;
-            font-size: 2.5rem;
-            text-align: center;
+        .topnav {
+            overflow: hidden;
+            background-color: #50B8B4;
+            color: white;
+            font-size: 1rem;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .card {
+            background-color: white;
+            box-shadow: 2px 2px 12px 1px rgba(140, 140, 140, .5);
+        }
+
+        .cards {
+            max-width: 800px;
+            margin: 0 auto;
+            display: grid;
+            grid-gap: 2rem;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+
+        .reading {
+            font-size: 1.4rem;
         }
     </style>
 </head>
 
 <body>
-    <h2>Smart APD</h2>
-    <div id="chart-temperature" class="container"></div>
-    <div id="chart-humidity" class="container"></div>
-</body>
-<script>
-    const timezone = new Date().getTimezoneOffset()
-    let dataInterval = 3000; // in ms
-    // Highcharts.setOptions({
-    //     global: {
-    //         getTimezoneOffset: timezone
-    //     }
-    // })
-    let chartT = new Highcharts.Chart({
-        chart: {
-            renderTo: 'chart-temperature'
-        },
-        title: {
-            text: 'Temperature Data'
-        },
-        series: [{
-            showInLegend: false,
-            data: []
-        }],
-        plotOptions: {
-            line: {
-                animation: false,
-                dataLabels: {
-                    enabled: true
-                }
-            },
-            series: {
-                color: '#059e8a'
-            }
-        },
-        xAxis: {
-            type: 'datetime',
-            dateTimeLabelFormats: {
-                second: '%H:%M:%S'
-            }
-        },
-        yAxis: {
-            title: {
-                text: 'Temperature (Celsius)'
-            }
-            //title: { text: 'Temperature (Fahrenheit)' }
-        },
-        credits: {
-            enabled: false
-        }
-    });
-    setInterval(function () {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange = function () {
-            if (this.readyState == 4 && this.status == 200) {
-                var x = new Date(),
-                    y = parseFloat(this.responseText);
-                //console.log(this.responseText);
-                if (chartT.series[0].data.length > 40) {
-                    chartT.series[0].addPoint([x, y], true, true, true);
-                } else {
-                    chartT.series[0].addPoint([x, y], true, false, true);
-                }
-            }
-        };
-        xhttp.open("GET", "/temperature", true);
-        xhttp.send();
-    }, dataInterval);
+    <div class="topnav">
+        <h1>Smart APD Websocket</h1>
+    </div>
+    <div class="content">
+        <div class="cards">
+            <div class="card">
+                <p><i class="fas fa-thermometer-half" style="color:#059e8a;"></i> TEMPERATURE</p>
+                <p><span class="reading"><span id="temp">%TEMPERATURE%</span> &deg;C</span></p>
+            </div>
+            <div class="card">
+                <p><i class="fas fa-tint" style="color:#00add6;"></i> HUMIDITY</p>
+                <p><span class="reading"><span id="hum">%HUMIDITY%</span> &percnt;</span></p>
+            </div>
+            <div class="card">
+                <p><i class="fas fa-angle-double-down" style="color:#e1e437;"></i> FLOW RATE</p>
+                <p><span class="reading"><span id="flow">%FLOWRATE%</span> L/min</span></p>
+            </div>
+        </div>
+    </div>
 
-    let chartH = new Highcharts.Chart({
-        chart: {
-            renderTo: 'chart-humidity'
-        },
-        title: {
-            text: 'Humidity Data'
-        },
-        series: [{
-            showInLegend: false,
-            data: []
-        }],
-        plotOptions: {
-            line: {
-                animation: false,
-                dataLabels: {
-                    enabled: true
+    <script>
+        if (!!window.EventSource) {
+            var source = new EventSource('/events');
+
+            source.addEventListener('open', function (e) {
+                console.log("Events connected");
+            }, false);
+
+            source.addEventListener('error', function (e) {
+                if (e.target.readyState != EventSource.OPEN) {
+                    console.log("Events Disconnected");
                 }
-            }
-        },
-        xAxis: {
-            type: 'datetime',
-            dateTimeLabelFormats: {
-                second: '%H:%M:%S'
-            }
-        },
-        yAxis: {
-            title: {
-                text: 'Humidity (%)'
-            }
-        },
-        credits: {
-            enabled: false
+            }, false);
+
+            source.addEventListener('message', function (e) {
+                console.log("message", e.data);
+            }, false);
+
+            source.addEventListener('temperature', function (e) {
+                console.log("temperature", e.data);
+                document.getElementById("temp").innerHTML = e.data;
+            }, false);
+
+            source.addEventListener('humidity', function (e) {
+                console.log("humidity", e.data);
+                document.getElementById("hum").innerHTML = e.data;
+            }, false);
+
+            source.addEventListener('flow_rate', function (e) {
+                console.log("flow_rate", e.data);
+                document.getElementById("flow").innerHTML = e.data;
+            }, false);
         }
-    });
-    setInterval(function () {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange = function () {
-            if (this.readyState == 4 && this.status == 200) {
-                var x = new Date(),
-                    y = parseFloat(this.responseText);
-                //console.log(this.responseText);
-                if (chartH.series[0].data.length > 40) {
-                    chartH.series[0].addPoint([x, y], true, true, true);
-                } else {
-                    chartH.series[0].addPoint([x, y], true, false, true);
-                }
-            }
-        };
-        xhttp.open("GET", "/humidity", true);
-        xhttp.send();
-    }, dataInterval);
-</script>
+    </script>
+</body>
 
 </html>
