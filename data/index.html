@@ -3,11 +3,11 @@
 
 <head>
     <title>Smart APD </title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css"
-        integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-    <link rel="icon" href="data:,">
-    <script src="https://code.highcharts.com/highcharts.js"></script>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <link rel='stylesheet' href='https://use.fontawesome.com/releases/v5.7.2/css/all.css'
+        integrity='sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr' crossorigin='anonymous'>
+    <link rel='icon' href='data:,'>
+    <script src='https://code.highcharts.com/highcharts.js'></script>
     <style>
         html {
             font-family: Arial, sans-serif;
@@ -66,86 +66,84 @@
 </head>
 
 <body>
-    <div class="topnav">
+    <div class='topnav'>
         <h1>Smart APD Webserver</h1>
     </div>
-    <div class="content">
-        <div class="cards">
-            <div class="card">
-                <p><i class="fas fa-thermometer-half" style="color:#059e8a;"></i> TEMPERATURE</p>
-                <p><span class="reading"><span id="temp">%TEMPERATURE%</span> &deg;C</span></p>
+    <div class='content'>
+        <div class='cards'>
+            <div class='card'>
+                <p><i class='fas fa-thermometer-half' style='color:#059e8a;'></i> TEMPERATURE</p>
+                <p><span class='reading'><span id='temp'>%TEMPERATURE%</span> &deg;C</span></p>
             </div>
-            <div class="card">
-                <p><i class="fas fa-tint" style="color:#00add6;"></i> HUMIDITY</p>
-                <p><span class="reading"><span id="hum">%HUMIDITY%</span> &percnt;</span></p>
+            <div class='card'>
+                <p><i class='fas fa-tint' style='color:#00add6;'></i> HUMIDITY</p>
+                <p><span class='reading'><span id='hum'>%HUMIDITY%</span> &percnt;</span></p>
             </div>
-            <div class="card">
-                <p><i class="fas fa-angle-double-down" style="color:#e1e437;"></i> FLOW RATE</p>
-                <p><span class="reading"><span id="flow">%FLOWRATE%</span> L/min</span></p>
+            <div class='card'>
+                <p><i class='fas fa-angle-double-down' style='color:#e1e437;'></i> FLOW RATE</p>
+                <p><span class='reading'><span id='flow'>%FLOWRATE%</span> L/min</span></p>
             </div>
         </div>
 
-        <div class="cards">
-            <div class="card">
+        <div class='cards'>
+            <div class='card'>
                 <p>UV STATUS</p>
-                <p class="reading"><span id="uvstats">%UVSTATUS%</span></p>
+                <p class='reading'><span id='uvstats'>%UVSTATUS%</span></p>
             </div>
-            <div class="card">
+            <div class='card'>
                 <p>FAN STATUS</p>
-                <p class="reading"><span id="fanstats">%FANSTATUS%</span></p>
+                <p class='reading'><span id='fanstats'>%FANSTATUS%</span></p>
             </div>
-            <div class="card">
+            <div class='card'>
                 <p>COOLER STATUS</p>
-                <p class="reading"><span id="tcstats">%THERMOCOOLERSTATUS%</span></p>
+                <p class='reading'><span id='tcstats'>%THERMOCOOLERSTATUS%</span></p>
             </div>
         </div>
     </div>
 
     <script>
-        if (!!window.EventSource) {
-            var source = new EventSource('/events');
+        var gateway = `ws://${window.location.hostname}:81/`;
+        var websocket;
+        window.addEventListener('load', onLoad);
 
-            source.addEventListener('open', function (e) {
-                console.log("Events connected");
-            }, false);
+        function initWebSocket() {
+            console.log('Trying to open a WebSocket connection');
+            websocket = new WebSocket(gateway);
+            websocket.onopen = onOpen;
+            websocket.onclose = onClose;
+            websocket.onmessage = function (event) {
+                processCommand(event);
+            };
+        }
 
-            source.addEventListener('error', function (e) {
-                if (e.target.readyState != EventSource.OPEN) {
-                    console.log("Events Disconnected");
-                }
-            }, false);
+        function onOpen(event) {
+            console.log('Connection opened');
+        }
 
-            source.addEventListener('message', function (e) {
-                console.log("message", e.data);
-            }, false);
+        function onClose(event) {
+            console.log('Connection closed');
+            setTimeout(initWebSocket, 2000);
+        }
 
-            source.addEventListener('temperature', function (e) {
-                console.log("temperature", e.data);
-                document.getElementById("temp").innerHTML = e.data;
-            }, false);
+        function processCommand(event) {
+            var obj = JSON.parse(event.data);
+            document.getElementById('temp').innerHTML = obj.temp;
+            document.getElementById('hum').innerHTML = obj.hum;
+            document.getElementById('flow').innerHTML = obj.flow;
+            document.getElementById('uvstats').innerHTML = obj.uvstats;
+            document.getElementById('fanstats').innerHTML = obj.fanstats;
+            document.getElementById('tcstats').innerHTML = obj.tcstats;
 
-            source.addEventListener('humidity', function (e) {
-                console.log("humidity", e.data);
-                document.getElementById("hum").innerHTML = e.data;
-            }, false);
+            console.log(obj.temp);
+            console.log(obj.hum);
+            console.log(obj.flow);
+            console.log(obj.uvstats);
+            console.log(obj.fanstats);
+            console.log(obj.tcstats);
+        }
 
-            source.addEventListener('flow_rate', function (e) {
-                console.log("flow_rate", e.data);
-                document.getElementById("flow").innerHTML = e.data;
-            }, false);
-
-            source.addEventListener('uvstatus', function (e) {
-                console.log("uvstatus", e.data);
-                document.getElementById("uvstats").innerHTML = e.data;
-            }, false);
-            source.addEventListener('fanstatus', function (e) {
-                console.log("fanstatus", e.data);
-                document.getElementById("fanstats").innerHTML = e.data;
-            }, false);
-            source.addEventListener('thermocoolerstatus', function (e) {
-                console.log("thermocoolerstatus", e.data);
-                document.getElementById("tcstats").innerHTML = e.data;
-            }, false);
+        function onLoad(event) {
+            initWebSocket();
         }
     </script>
 </body>
