@@ -32,7 +32,7 @@ DHT dht(DHT_PIN, DHT_TYPE);
 #define PELTIER 27
 
 // Variables
-float temp, humi;
+float temp, humid;
 long currentMillis = 0;
 long previousMillis = 0;
 int interval = 1000;
@@ -42,6 +42,9 @@ byte pulse1Sec = 0;
 float flowRate;
 unsigned int flowMiliLitres;
 unsigned int totalMiliLitres;
+String uvstatus, fanstatus, thermocoolerstatus;
+String flowThres = "20";
+String humidThres, tempThres;
 
 // Functions declaration
 void StartSPIFFS();
@@ -121,8 +124,30 @@ void loop()
 
     events.send("ping", NULL, millis());
     events.send(String(temp).c_str(), "temperature", millis());
-    events.send(String(humi).c_str(), "humidity", millis());
+    events.send(String(humid).c_str(), "humidity", millis());
     events.send(String(flowRate).c_str(), "flow_rate", millis());
+    events.send(uvstatus.c_str(), "uvstatus", millis());
+    events.send(fanstatus.c_str(), "fanstatus", millis());
+    events.send(thermocoolerstatus.c_str(), "thermocoolerstatus", millis());
+  }
+
+  if ((int(flowRate) < flowThres.toInt()) || (temp > tempThres.toInt()) || (humid < humidThres.toInt()))
+  {
+    digitalWrite(KIPAS, LOW);
+    digitalWrite(UV, LOW);
+    digitalWrite(PELTIER, LOW);
+    uvstatus = "ON";
+    fanstatus = "ON";
+    thermocoolerstatus = "ON";
+  }
+  else
+  {
+    uvstatus = "OFF";
+    fanstatus = "OFF";
+    thermocoolerstatus = "OFF";
+    digitalWrite(KIPAS, HIGH);
+    digitalWrite(UV, HIGH);
+    digitalWrite(PELTIER, HIGH);
   }
 }
 
@@ -174,17 +199,17 @@ void IRAM_ATTR pulseCounter()
 
 void readDHTSensors()
 {
-  humi = dht.readHumidity();
+  humid = dht.readHumidity();
   temp = dht.readTemperature();
 
-  if (isnan(humi) || isnan(temp))
+  if (isnan(humid) || isnan(temp))
   {
     Serial.println(F("Failed to read from DHT sensor!"));
     return;
   }
 
   Serial.print(F("Humidity: "));
-  Serial.print(humi);
+  Serial.print(humid);
   Serial.print(F(" %   Temperature : "));
   Serial.print(temp);
   Serial.println(F(" °C"));
@@ -207,10 +232,22 @@ String processor(const String &var)
   }
   else if (var == "HUMIDITY")
   {
-    return String(humi);
+    return String(humid);
   }
   else if (var == "FLOWRATE")
   {
     return String(flowRate);
+  }
+  else if (var == "UVSTATUS")
+  {
+    return uvstatus;
+  }
+  else if (var == "FANSTATUS")
+  {
+    return fanstatus;
+  }
+  else if (var == "THERMOCOOLERSTATUS")
+  {
+    return thermocoolerstatus;
   }
 }

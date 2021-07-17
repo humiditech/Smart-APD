@@ -40,11 +40,12 @@
         .card {
             background-color: white;
             box-shadow: 2px 2px 12px 1px rgba(140, 140, 140, .5);
+            border-radius: 5px;
         }
 
         .cards {
             max-width: 800px;
-            margin: 0 auto;
+            margin: 10px auto;
             display: grid;
             grid-gap: 2rem;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -53,12 +54,20 @@
         .reading {
             font-size: 1.4rem;
         }
+
+        @media screen and (max-width : 320px) {
+            .cards {
+                max-width: 100px;
+                margin: 10px auto;
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
     </style>
 </head>
 
 <body>
     <div class="topnav">
-        <h1>Smart APD Websocket</h1>
+        <h1>Smart APD Webserver</h1>
     </div>
     <div class="content">
         <div class="cards">
@@ -73,6 +82,21 @@
             <div class="card">
                 <p><i class="fas fa-angle-double-down" style="color:#e1e437;"></i> FLOW RATE</p>
                 <p><span class="reading"><span id="flow">%FLOWRATE%</span> L/min</span></p>
+            </div>
+        </div>
+
+        <div class="cards">
+            <div class="card">
+                <p>UV STATUS</p>
+                <p class="reading"><span id="uvstats">%UVSTATUS%</span></p>
+            </div>
+            <div class="card">
+                <p>FAN STATUS</p>
+                <p class="reading"><span id="fanstats">%FANSTATUS%</span></p>
+            </div>
+            <div class="card">
+                <p>COOLER STATUS</p>
+                <p class="reading"><span id="tcstats">%THERMOCOOLERSTATUS%</span></p>
             </div>
         </div>
     </div>
@@ -108,6 +132,19 @@
             source.addEventListener('flow_rate', function (e) {
                 console.log("flow_rate", e.data);
                 document.getElementById("flow").innerHTML = e.data;
+            }, false);
+
+            source.addEventListener('uvstatus', function (e) {
+                console.log("uvstatus", e.data);
+                document.getElementById("uvstats").innerHTML = e.data;
+            }, false);
+            source.addEventListener('fanstatus', function (e) {
+                console.log("fanstatus", e.data);
+                document.getElementById("fanstats").innerHTML = e.data;
+            }, false);
+            source.addEventListener('thermocoolerstatus', function (e) {
+                console.log("thermocoolerstatus", e.data);
+                document.getElementById("tcstats").innerHTML = e.data;
             }, false);
         }
     </script>
