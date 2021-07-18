@@ -67,7 +67,7 @@
 
 <body>
     <div class='topnav'>
-        <h1>Smart APD Webserver</h1>
+        <h1>Smart APD Web App</h1>
     </div>
     <div class='content'>
         <div class='cards'>
@@ -100,18 +100,28 @@
             </div>
         </div>
 
-        <form action='/get'>
-            Temperature Threshold : <input type='text' name='tempThres'>
-            <input type='submit' value='Submit'>
+        <form action='/get' target='hidden-form'>
+            <p>Temperature Threshold : (current value %tempThres%)</p>
+            <div class='inputField'>
+                <input type='text' name='tempThres'>
+                <input type='submit' value='Submit' onClick='submitMessage()'>
+            </div>
         </form><br>
-        <form action='/get'>
-            Humidity Threshold : <input type='text' name='humidThres'>
-            <input type='submit' value='Submit'>
+        <form action='/get' target='hidden-form'>
+            <p>Humidity Threshold : (current value %humidThres%)</p>
+            <div class='inputField'>
+                <input type='text' name='humidThres'>
+                <input type='submit' value='Submit' onClick='submitMessage()'>
+            </div>
         </form><br>
-        <form action='/get'>
-            Flow Threshold : <input type='text' name='flowThres'>
-            <input type='submit' value='Submit'>
+        <form action='/get' target='hidden-form'>
+            <p>Flow Threshold : (current value %flowThres%)</p>
+            <div class='inputField'>
+                <input type='text' name='flowThres'>
+                <input type='submit' value='Submit' onClick='submitMessage()'>
+            </div>
         </form><br>
+        <iframe style="display: none" name="hidden-form"></iframe>
     </div>
 
     <script>
@@ -157,6 +167,13 @@
 
         function onLoad(event) {
             initWebSocket();
+        }
+
+        function submitMessage() {
+            alert("Saved value to ESP SPIFFS");
+            setTimeout(function () {
+                document.location.reload(false);
+            }, 500);
         }
     </script>
 </body>
