@@ -191,6 +191,7 @@ void loop()
 bool initWiFiAP(const char *ssid, const char *password)
 {
   WiFi.softAP(ssid, password);
+  delay(2000);
   WiFi.softAPConfig(local_ip, gateway, subnet);
   delay(100);
 }
