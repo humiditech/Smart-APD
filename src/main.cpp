@@ -46,9 +46,9 @@ float flowRate;
 unsigned int flowMiliLitres;
 unsigned int totalMiliLitres;
 String uvstatus, fanstatus, thermocoolerstatus;
-String flowThres = "10";
-String humidThres = "80";
-String tempThres = "30";
+String flowThres = "";
+String humidThres = "";
+String tempThres = "";
 String jsonString;
 const char *param1 = "tempThres";
 const char *param2 = "humidThres";
@@ -157,18 +157,28 @@ const char index_html[] PROGMEM = R"rawliteral(
             </div>
         </div>
 
-        <form action='/get'>
-            Temperature Threshold : <input type='text' name='tempThres'>
-            <input type='submit' value='Submit'>
+        <form action='/get' target='hidden-form'>
+            <p>Temperature Threshold : (current value %tempThres%)</p>
+            <div class='inputField'>
+              <input type='text' name='tempThres'>
+              <input type='submit' value='Submit' onClick='submitMessage()'>
+            </div>
         </form><br>
-        <form action='/get'>
-            Humidity Threshold : <input type='text' name='humidThres'>
-            <input type='submit' value='Submit'>
+        <form action='/get' target='hidden-form'>
+            <p>Humidity Threshold : (current value %humidThres%)</p>
+            <div class='inputField'>
+              <input type='text' name='humidThres'>
+              <input type='submit' value='Submit' onClick='submitMessage()'>
+            </div>
         </form><br>
-        <form action='/get'>
-            Flow Threshold : <input type='text' name='flowThres'>
-            <input type='submit' value='Submit'>
+        <form action='/get' target='hidden-form'>
+            <p>Flow Threshold : (current value %flowThres%)</p>
+            <div class='inputField'>
+              <input type='text' name='flowThres'>
+              <input type='submit' value='Submit' onClick='submitMessage()'>
+            </div>
         </form><br>
+        <iframe style="display: none" name="hidden-form"></iframe>
     </div>
 
     <script>
@@ -215,24 +225,32 @@ const char index_html[] PROGMEM = R"rawliteral(
         function onLoad(event) {
             initWebSocket();
         }
+
+        function submitMessage(){
+          alert("Saved value to ESP SPIFFS");
+          setTimeout(function(){document.location.reload(false);},500);
+        }
     </script>
 </body>
 
 </html>
 )rawliteral";
+
 // Functions declaration
 void StartSPIFFS();
 int StartWiFi(const char *ssid, const char *password);
 void IRAM_ATTR pulseCounter();
 void readDHTSensors();
 void readFlowSensors();
-// String processor(const String &var);
+String processor(const String &var);
 // void handleWebSocketMessage(void *arg, uint8_t *data, size_t len);
 // void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
 // void initWebSocket();
 void webSocketEvent(byte num, WStype_t type, uint8_t *payload, size_t length);
 void notFound(AsyncWebServerRequest *request);
 void update_webpage();
+String readFile(fs::FS &fs, const char *path);
+void writeFile(fs::FS &fs, const char *path, const char *message);
 
 void setup()
 {
@@ -265,7 +283,7 @@ void setup()
   // server.on("/", []()
   //           { server.send(200, "text\html", web); });
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send_P(200, "text/html", index_html); });
+            { request->send_P(200, "text/html", index_html, processor); });
 
   server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request)
             {
@@ -275,20 +293,24 @@ void setup()
                 inputParam = param1;
                 inputMessage = request->getParam(param1)->value();
                 tempThres = request->getParam(param1)->value();
+                writeFile(SPIFFS, "/tempThres.txt", tempThres.c_str());
               }
               else if (request->hasParam(param2))
               {
                 inputParam = param2;
                 inputMessage = request->getParam(param2)->value();
                 humidThres = request->getParam(param2)->value();
+                writeFile(SPIFFS, "/humidThres.txt", humidThres.c_str());
               }
               else if (request->hasParam(param3))
               {
                 inputParam = param3;
                 inputMessage = request->getParam(param3)->value();
                 flowThres = request->getParam(param3)->value();
+                writeFile(SPIFFS, "/flowThres.txt", flowThres.c_str());
               }
-              request->send(200, "text/html", "HTTP GET request sent to your ESP on input field (" + inputParam + ") with value: " + inputMessage + "<br><a href=\"/\">Return to Home Page</a>");
+              Serial.println(inputMessage);
+              request->send(200, "text/text", inputMessage);
             });
   server.onNotFound(notFound);
   server.begin();
@@ -299,6 +321,9 @@ void setup()
 void loop()
 {
   // server.handleClient();
+  tempThres = readFile(SPIFFS, "/tempThres.txt");
+  humidThres = readFile(SPIFFS, "/humidThres.txt");
+  flowThres = readFile(SPIFFS, "/flowThres.txt");
   webSocket.loop();
   if ((millis() - previousMillis) > interval)
   {
@@ -345,26 +370,6 @@ void loop()
     thermocoolerstatus = "OFF";
   }
 }
-
-// void StartSPIFFS()
-// {
-//   boolean SPIFFS_Status;
-//   SPIFFS_Status = SPIFFS.begin();
-//   if (SPIFFS_Status == false)
-//   { // Most likely SPIFFS has not yet been formated, so do so
-//     SPIFFS.begin();
-//     File datafile = SPIFFS.open("/" + DataFile, FILE_READ);
-//     if (!datafile || !datafile.isDirectory())
-//     {
-//       Serial.println("SPIFFS failed to start..."); // If ESP32 nothing more can be done, so delete and then create another file
-//       SPIFFS.remove("/" + DataFile);               // The file is corrupted!!
-//       datafile.close();
-//     }
-//   }
-//   else
-//     Serial.println("SPIFFS Started successfully...");
-// }
-
 int StartWiFi(const char *ssid, const char *password)
 {
   int connAttempts = 0;
@@ -456,4 +461,60 @@ void update_webpage()
   Serial.println(jsonString);
   webSocket.broadcastTXT(jsonString);
   jsonString = "";
+}
+
+String readFile(fs::FS &fs, const char *path)
+{
+  Serial.printf("Readinf file: %s\r\n", path);
+  File file = fs.open(path, "r");
+
+  if (!file || file.isDirectory())
+  {
+    Serial.println(F("- empty file or failed to open file"));
+    return String();
+  }
+  Serial.println(F("- read from file:"));
+  String fileContent;
+  while (file.available())
+  {
+    fileContent += String((char)file.read());
+  }
+  Serial.println(fileContent);
+  return fileContent;
+}
+
+void writeFile(fs::FS &fs, const char *path, const char *message)
+{
+  Serial.printf("Writing file : %s\r\n", path);
+  File file = fs.open(path, "w");
+  if (!file)
+  {
+    Serial.println(F("- failed to open file for writing"));
+    return;
+  }
+  if (file.print(message))
+  {
+    Serial.println(F("- file written"));
+  }
+  else
+  {
+    Serial.println(F("- write failed"));
+  }
+}
+
+String processor(const String &var)
+{
+  if (var == "tempThres")
+  {
+    return readFile(SPIFFS, "/tempThres.txt");
+  }
+  else if (var == "humidThres")
+  {
+    return readFile(SPIFFS, "/humidThres.txt");
+  }
+  else if (var == "flowThres")
+  {
+    return readFile(SPIFFS, "/flowThres.txt");
+  }
+  return String();
 }
