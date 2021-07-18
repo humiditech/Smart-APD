@@ -8,14 +8,16 @@
 #include <ArduinoJson.h>
 #include <WebSocketsServer.h>
 #include <WiFiClientSecure.h>
-#include <Adafruit_Sensor.h>
 #include <DHT.h>
-#include <DHT_U.h>
 #include "credentials.h"
 
 String version = "v1.0";
 String site_width = "1023";
 WiFiClient client;
+
+IPAddress local_ip(192, 168, 1, 1);
+IPAddress gateway(192, 168, 1, 1);
+IPAddress subnet(255, 255, 255, 0);
 AsyncWebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 
@@ -23,7 +25,7 @@ WebSocketsServer webSocket = WebSocketsServer(81);
 #define DHT_PIN 23
 #define DHT_TYPE DHT11
 
-DHT_Unified dht(DHT_PIN, DHT_TYPE);
+DHT dht(DHT_PIN, DHT_TYPE);
 
 // Flow Sensor
 #define FLOW_PIN 16
@@ -55,7 +57,8 @@ const char *param3 = "flowThres";
 
 // Functions declaration
 void StartSPIFFS();
-int StartWiFi(const char *ssid, const char *password);
+bool initWiFiAP(const char *ssid, const char *password);
+int initWiFiSTA(const char *ssid, const char *password);
 void IRAM_ATTR pulseCounter();
 void readDHTSensors();
 void readFlowSensors();
@@ -91,47 +94,10 @@ void setup()
   }
 
   dht.begin();
-  sensor_t sensor;
-  dht.temperature().getSensor(&sensor);
-  Serial.println(F("------------------------------------"));
-  Serial.println(F("Temperature Sensor"));
-  Serial.print(F("Sensor Type: "));
-  Serial.println(sensor.name);
-  Serial.print(F("Driver Ver:  "));
-  Serial.println(sensor.version);
-  Serial.print(F("Unique ID:   "));
-  Serial.println(sensor.sensor_id);
-  Serial.print(F("Max Value:   "));
-  Serial.print(sensor.max_value);
-  Serial.println(F("°C"));
-  Serial.print(F("Min Value:   "));
-  Serial.print(sensor.min_value);
-  Serial.println(F("°C"));
-  Serial.print(F("Resolution:  "));
-  Serial.print(sensor.resolution);
-  Serial.println(F("°C"));
-  Serial.println(F("------------------------------------"));
-  // Print humidity sensor details.
-  dht.humidity().getSensor(&sensor);
-  Serial.println(F("Humidity Sensor"));
-  Serial.print(F("Sensor Type: "));
-  Serial.println(sensor.name);
-  Serial.print(F("Driver Ver:  "));
-  Serial.println(sensor.version);
-  Serial.print(F("Unique ID:   "));
-  Serial.println(sensor.sensor_id);
-  Serial.print(F("Max Value:   "));
-  Serial.print(sensor.max_value);
-  Serial.println(F("%"));
-  Serial.print(F("Min Value:   "));
-  Serial.print(sensor.min_value);
-  Serial.println(F("%"));
-  Serial.print(F("Resolution:  "));
-  Serial.print(sensor.resolution);
-  Serial.println(F("%"));
-  Serial.println(F("------------------------------------"));
+
   // StartSPIFFS();
-  StartWiFi(ssid, password);
+  // initWiFiSTA(ssid, password);
+  initWiFiAP(ssid, password);
   attachInterrupt(digitalPinToInterrupt(FLOW_PIN), pulseCounter, FALLING);
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
             { request->send(SPIFFS, "/index.html", String(), false, processor); });
@@ -221,7 +187,14 @@ void loop()
     thermocoolerstatus = "OFF";
   }
 }
-int StartWiFi(const char *ssid, const char *password)
+
+bool initWiFiAP(const char *ssid, const char *password)
+{
+  WiFi.softAP(ssid, password);
+  WiFi.softAPConfig(local_ip, gateway, subnet);
+  delay(100);
+}
+int intiWiFiSTA(const char *ssid, const char *password)
 {
   int connAttempts = 0;
   Serial.print(F("\r\nConnecting to : "));
@@ -250,13 +223,10 @@ void IRAM_ATTR pulseCounter()
 
 void readDHTSensors()
 {
-  sensors_event_t event;
-  dht.temperature().getEvent(&event);
-  dht.humidity().getEvent(&event);
-  humid = event.relative_humidity;
-  temp = event.temperature;
+  humid = dht.readHumidity();
+  temp = dht.readTemperature();
 
-  if (isnan(event.relative_humidity) || isnan(event.temperature))
+  if (isnan(humid) || isnan(temp))
   {
     Serial.println(F("Failed to read from DHT sensor!"));
     return;
