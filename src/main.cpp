@@ -10,10 +10,14 @@
 #include <WiFiClientSecure.h>
 #include <DHT.h>
 #include "credentials.h"
+#include "LiquidCrystal_I2C.h"
+#include "Wire.h"
 
 String version = "v1.0";
 String site_width = "1023";
 WiFiClient client;
+LiquidCrystal_I2C lcd(0x27,20,4);
+char buf[20];
 
 IPAddress local_ip(192, 168, 1, 1);
 IPAddress gateway(192, 168, 1, 1);
@@ -23,7 +27,7 @@ WebSocketsServer webSocket = WebSocketsServer(81);
 
 // DHT 22
 #define DHT_PIN 23
-#define DHT_TYPE DHT11
+#define DHT_TYPE DHT22
 
 DHT dht(DHT_PIN, DHT_TYPE);
 
@@ -39,6 +43,7 @@ DHT dht(DHT_PIN, DHT_TYPE);
 float temp, humid;
 long currentMillis = 0;
 unsigned long previousMillis = 0;
+unsigned long lcdprevmillis = 0;
 const int interval = 1000;
 float calibrationFactor = 4.5;
 volatile byte pulseCount;
@@ -51,9 +56,11 @@ String flowThres = "";
 String humidThres = "";
 String tempThres = "";
 String jsonString;
+String message = "";
 const char *param1 = "tempThres";
 const char *param2 = "humidThres";
 const char *param3 = "flowThres";
+uint8_t cnt = 0;
 
 // Functions declaration
 void StartSPIFFS();
@@ -68,6 +75,7 @@ void notFound(AsyncWebServerRequest *request);
 void update_webpage();
 String readFile(fs::FS &fs, const char *path);
 void writeFile(fs::FS &fs, const char *path, const char *message);
+void lcdDisplaySensor(uint8_t sel);
 
 void setup()
 {
@@ -80,20 +88,22 @@ void setup()
   digitalWrite(KIPAS, HIGH);
   digitalWrite(UV, HIGH);
   digitalWrite(PELTIER, HIGH);
+  dht.begin();
 
   pulseCount = 0;
   flowRate = 0.0;
   flowMiliLitres = 0;
   totalMiliLitres = 0;
   previousMillis = 0;
+  Wire.setClock(10000);
+  lcd.begin();
+  lcd.backlight();
 
   if (!SPIFFS.begin(true))
   {
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
-
-  dht.begin();
 
   // StartSPIFFS();
   // initWiFiSTA(ssid, password);
@@ -133,6 +143,11 @@ void setup()
   server.begin();
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
+
+  lcd.setCursor(8,1);sprintf(buf,"SMART");lcd.print(buf);
+  lcd.setCursor(9,2);sprintf(buf,"APD");lcd.print(buf);
+  delay(1000);
+  lcd.clear();
 }
 
 void loop()
@@ -170,8 +185,8 @@ void loop()
 
   if ((int(flowRate) < flowThres.toInt()) || (temp > tempThres.toInt()) || (humid < humidThres.toInt()))
   {
-    digitalWrite(KIPAS, LOW);
-    digitalWrite(UV, LOW);
+    digitalWrite(KIPAS, HIGH);
+    digitalWrite(UV, HIGH);
     digitalWrite(PELTIER, LOW);
     uvstatus = "ON";
     fanstatus = "ON";
@@ -179,13 +194,56 @@ void loop()
   }
   else
   {
-    digitalWrite(KIPAS, HIGH);
-    digitalWrite(UV, HIGH);
+    digitalWrite(KIPAS, LOW);
+    digitalWrite(UV, LOW);
     digitalWrite(PELTIER, HIGH);
     uvstatus = "OFF";
     fanstatus = "OFF";
     thermocoolerstatus = "OFF";
   }
+
+  if((millis() - lcdprevmillis) >= 3500){
+    lcd.clear();
+    lcdprevmillis = millis();
+    lcdDisplaySensor(cnt);
+    cnt++;
+    if(cnt > 1)cnt=0;
+  }
+}
+
+void lcdDisplaySensor(uint8_t sel)
+{
+  char msg[20];
+
+  if(sel == 0){
+  char degree = (char)223;
+  message = "SUHU: " + String(temp) + String(degree) +"C";
+  message.toCharArray(msg,message.length()+1);
+  lcd.setCursor(0,0);sprintf(buf,"%s",msg);lcd.print(buf);
+
+  message = "KELEMBAPAN: " + String(temp) + "%";
+  message.toCharArray(msg,message.length()+1);
+  lcd.setCursor(0,1);sprintf(buf,"%s",msg);lcd.print(buf);
+
+  message = "FLOW: " + String(flowRate) + "L/m";
+  message.toCharArray(msg,message.length()+1);
+  lcd.setCursor(0,2);sprintf(buf,"%s",msg);lcd.print(buf);
+  }
+
+  else if(sel == 1){
+  message = "KIPAS: " + fanstatus;
+  message.toCharArray(msg,message.length()+1);
+  lcd.setCursor(0,0);sprintf(buf,"%s",msg);lcd.print(buf);
+
+  message = "LAMPU UV: " + uvstatus;
+  message.toCharArray(msg,message.length()+1);
+  lcd.setCursor(0,1);sprintf(buf,"%s",msg);lcd.print(buf);
+
+  message = "PELTIER: " + thermocoolerstatus;
+  message.toCharArray(msg,message.length()+1);
+  lcd.setCursor(0,2);sprintf(buf,"%s",msg);lcd.print(buf);
+  }
+
 }
 
 bool initWiFiAP(const char *ssid, const char *password)
